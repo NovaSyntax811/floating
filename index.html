@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Floating Lantern</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <!-- Intro overlay -->
+  <div id="intro" class="overlay">
+    <div class="intro-card">
+      <h1>Floating Lantern</h1>
+      <p class="subtitle">a zen shortgame</p>
+      <p class="hint">Click the water to release a lantern.<br/>Shape a landscape of light, at your own pace.</p>
+      <button id="begin-btn">Begin</button>
+    </div>
+  </div>
+
+  <!-- Top left: resources and progress -->
+  <div id="hud" class="ui hidden">
+    <div class="hud-title">Floating Lantern</div>
+    <div class="hud-row" id="light-row" title="Light essence. It slowly returns over time.">
+      <span class="light-icon"></span>
+      <span id="light-count">10</span>
+    </div>
+    <div class="hud-row harmony" title="Harmony grows as you create.">
+      <div class="harmony-bar"><div id="harmony-fill"></div></div>
+      <span id="harmony-label"></span>
+    </div>
+  </div>
+
+  <!-- Bottom dock: lantern crafting -->
+  <div id="dock" class="ui hidden">
+    <div class="dock-group" id="model-group">
+      <div class="dock-label">Lantern</div>
+      <div class="dock-items" id="model-items"></div>
+    </div>
+    <div class="dock-group" id="material-group">
+      <div class="dock-label">Material</div>
+      <div class="dock-items" id="material-items"></div>
+    </div>
+    <div class="dock-group" id="color-group">
+      <div class="dock-label">Dye</div>
+      <div class="dock-items" id="color-items"></div>
+    </div>
+    <div class="dock-group" id="pattern-group">
+      <div class="dock-label">Pattern</div>
+      <div class="dock-items" id="pattern-items"></div>
+    </div>
+  </div>
+
+  <!-- Ambience -->
+  <button id="ambience-btn" class="ui icon-btn hidden" title="Ambience">☾</button>
+  <div id="ambience-panel" class="ui panel hidden">
+    <div class="panel-title">Ambience</div>
+    <label class="panel-row">
+      <span>Hour</span>
+      <input type="range" id="time-slider" min="0" max="1" step="0.001" value="0.35" />
+    </label>
+    <label class="panel-row toggle"><input type="checkbox" id="mist-toggle" /><span>Mist</span></label>
+    <label class="panel-row toggle"><input type="checkbox" id="firefly-toggle" /><span>Fireflies</span></label>
+    <label class="panel-row toggle"><input type="checkbox" id="shooting-toggle" /><span>Falling stars</span></label>
+    <div class="panel-divider"></div>
+    <label class="panel-row toggle"><input type="checkbox" id="sound-toggle" /><span>Sound</span></label>
+    <label class="panel-row">
+      <span>Volume</span>
+      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.6" />
+    </label>
+    <div class="panel-divider"></div>
+    <button id="reset-btn" class="subtle-btn">Start over</button>
+  </div>
+
+  <!-- Selected lantern -->
+  <div id="edit-panel" class="ui panel hidden">
+    <div class="panel-title">Lantern</div>
+    <div class="panel-sub" id="edit-info"></div>
+    <div class="dock-label">Dye</div>
+    <div class="dock-items" id="edit-colors"></div>
+    <div class="dock-label">Pattern</div>
+    <div class="dock-items" id="edit-patterns"></div>
+    <div class="edit-actions">
+      <button id="upgrade-btn"></button>
+      <button id="release-btn" class="subtle-btn">Let it go</button>
+    </div>
+  </div>
+
+  <!-- Unlock toast -->
+  <div id="toast" class="hidden"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
