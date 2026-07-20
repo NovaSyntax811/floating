@@ -327,6 +327,10 @@ export class Environment {
   update(dt, t) {
     this.starUniforms.uTime.value = t;
 
+    // Moon halo breathes very slowly.
+    const breath = 1 + Math.sin(t * 0.12) * 0.05;
+    this.moonGlow.scale.setScalar(150 * breath);
+
     // Mist drift and fade.
     this._mistLevel += (this._mistTarget - this._mistLevel) * Math.min(1, dt * 1.2);
     if (this._mistLevel > 0.005) {

@@ -64,10 +64,13 @@ export class LanternManager {
     this.raycastTargets = [];
     this.ripples = [];
     this.dying = [];
+    this.bursts = [];
+    this.hovered = null;
     this.glowTex = makeGlowTexture();
     this.patternCache = new Map();
     this.poolGeo = new THREE.CircleGeometry(1, 24);
     this.selected = null;
+    this._buildGhost();
 
     this.selectionRing = new THREE.Mesh(
       new THREE.RingGeometry(1.5, 1.62, 48),
@@ -89,6 +92,57 @@ export class LanternManager {
     return this.patternCache.get(id);
   }
 
+  // A soft ring + glow that previews where the next lantern would land.
+  _buildGhost() {
+    const group = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.78, 0.88, 40),
+      new THREE.MeshBasicMaterial({
+        color: '#ffffff',
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    const glow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.glowTex,
+        color: '#ffffff',
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    glow.scale.setScalar(2.6);
+    glow.position.y = 0.3;
+    group.add(ring, glow);
+    this.ghost = { group, ring, glow, level: 0, color: new THREE.Color('#ffffff') };
+    this.scene.add(group);
+  }
+
+  updateGhost(dt, t, target) {
+    const gh = this.ghost;
+    const want = target.visible ? 1 : 0;
+    gh.level += (want - gh.level) * Math.min(1, dt * 9);
+    if (target.visible) {
+      gh.group.position.set(target.x, waveHeight(target.x, target.z, t) + 0.05, target.z);
+      gh.color.set(target.ok ? target.colorHex : '#59607a');
+      gh.ring.material.color.copy(gh.color);
+      gh.glow.material.color.copy(gh.color);
+    }
+    gh.ring.scale.setScalar(1 + Math.sin(t * 2.2) * 0.06);
+    gh.ring.material.opacity = gh.level * 0.42;
+    gh.glow.material.opacity = gh.level * 0.15;
+  }
+
+  setHovered(lantern) {
+    this.hovered = lantern;
+  }
+
   place(data, animate = true) {
     const lantern = {
       ...data,
@@ -96,7 +150,10 @@ export class LanternManager {
       level: data.level ?? 1,
       driftAngle: Math.random() * Math.PI * 2,
       spawnTime: animate ? 0 : 1,
+      selectPulse: 1,
+      hoverBoost: 0,
       rippleTimer: 1.5 + Math.random() * 2,
+      wakeTimer: 4 + Math.random() * 5,
       group: new THREE.Group(),
       shadeMats: [],
       sparks: [],
@@ -106,7 +163,10 @@ export class LanternManager {
     lantern.group.scale.setScalar(animate ? 0.15 * SCALE : SCALE);
     this.scene.add(lantern.group);
     this.lanterns.push(lantern);
-    if (animate) this.spawnRipple(lantern.x, lantern.z, lantern.colorHex);
+    if (animate) {
+      this.spawnRipple(lantern.x, lantern.z, lantern.colorHex);
+      this.spawnBurst(lantern.x, lantern.z, lantern.colorHex);
+    }
     this._applyLevel(lantern);
     return lantern;
   }
@@ -259,9 +319,11 @@ export class LanternManager {
     const fx = MATERIAL_FX[lantern.material];
     const lvl = lantern.level;
     const haloScale = 3.1 * fx.halo * (1 + 0.4 * (lvl - 1));
+    lantern.haloBase = haloScale;
     lantern.halo.scale.set(haloScale, haloScale, 1);
     lantern.halo.material.opacity = 0.36 + 0.1 * (lvl - 1);
     const poolScale = 3.6 * fx.halo * (1 + 0.35 * (lvl - 1));
+    lantern.poolBase = poolScale;
     lantern.pool.scale.setScalar(poolScale);
     for (const s of lantern.shadeMats) {
       s.mat.emissiveIntensity = s.baseIntensity * (1 + 0.3 * (lvl - 1));
@@ -322,14 +384,24 @@ export class LanternManager {
 
   select(lantern) {
     this.selected = lantern;
+    lantern.selectPulse = 0;
   }
 
   deselect() {
+    if (this.selected) {
+      const s = this.selected;
+      this.spawnRipple(s.group.position.x, s.group.position.z, '#ffffff', {
+        maxScale: 2.6,
+        opacity: 0.22,
+        duration: 1.1,
+      });
+    }
     this.selected = null;
   }
 
   release(lantern) {
     if (this.selected === lantern) this.deselect();
+    if (this.hovered === lantern) this.hovered = null;
     const i = this.lanterns.indexOf(lantern);
     if (i >= 0) this.lanterns.splice(i, 1);
     for (const b of lantern.bodies) {
@@ -340,13 +412,14 @@ export class LanternManager {
     this.dying.push(lantern);
   }
 
-  spawnRipple(x, z, colorHex = '#ffffff') {
+  spawnRipple(x, z, colorHex = '#ffffff', opts = {}) {
+    const { maxScale = 4.6, opacity = 0.45, duration = 2.2 } = opts;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.92, 1.0, 40),
       new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
-        opacity: 0.45,
+        opacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -356,17 +429,57 @@ export class LanternManager {
     ring.position.set(x, 0.06, z);
     ring.scale.setScalar(0.4);
     this.scene.add(ring);
-    this.ripples.push({ mesh: ring, life: 0 });
+    this.ripples.push({ mesh: ring, life: 0, maxScale, opacity, duration });
+  }
+
+  // A short spray of rising sparks when a lantern lands on the water.
+  spawnBurst(x, z, colorHex) {
+    const color = new THREE.Color(colorHex).lerp(new THREE.Color('#ffffff'), 0.35);
+    for (let i = 0; i < 8; i++) {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: this.glowTex,
+          color,
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      const a = Math.random() * Math.PI * 2;
+      const r = 0.15 + Math.random() * 0.35;
+      sprite.position.set(x + Math.cos(a) * r, 0.25, z + Math.sin(a) * r);
+      sprite.scale.setScalar(0.16 + Math.random() * 0.18);
+      this.scene.add(sprite);
+      this.bursts.push({
+        sprite,
+        vx: Math.cos(a) * (0.3 + Math.random() * 0.5),
+        vy: 1.1 + Math.random() * 1.3,
+        vz: Math.sin(a) * (0.3 + Math.random() * 0.5),
+        life: 0,
+        duration: 0.7 + Math.random() * 0.4,
+      });
+    }
   }
 
   update(dt, t) {
     for (const l of this.lanterns) {
-      // Spawn pop.
+      // Spawn pop and select pulse together set the visual scale.
+      let scaleK = 1;
       if (l.spawnTime < 1) {
         l.spawnTime = Math.min(1, l.spawnTime + dt * 1.6);
         const k = 1 - Math.pow(1 - l.spawnTime, 3);
-        l.group.scale.setScalar((0.15 + 0.85 * k) * SCALE);
+        scaleK *= 0.15 + 0.85 * k;
       }
+      if (l.selectPulse < 1) {
+        l.selectPulse = Math.min(1, l.selectPulse + dt * 2.8);
+        scaleK *= 1 + Math.sin(l.selectPulse * Math.PI) * 0.07;
+      }
+      l.group.scale.setScalar(scaleK * SCALE);
+
+      // Hovered lanterns glow a little brighter.
+      const hoverTarget = this.hovered === l ? 1 : 0;
+      l.hoverBoost += (hoverTarget - l.hoverBoost) * Math.min(1, dt * 8);
 
       // Slow drift, curving gently, held inside the lake.
       const fx = MATERIAL_FX[l.material];
@@ -395,10 +508,20 @@ export class LanternManager {
       l.group.rotation.z = tilt.rz + Math.cos(t * 0.5 + l.seed * 1.3) * 0.02;
       l.group.rotation.y += dt * 0.05;
 
-      // Breathing glow.
+      // Breathing glow, lifted while hovered.
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.1 + l.seed * 7);
-      l.halo.material.opacity = (0.32 + 0.1 * (l.level - 1)) + pulse * 0.1;
-      l.pool.material.opacity = 0.24 + pulse * 0.1;
+      l.halo.material.opacity = (0.32 + 0.1 * (l.level - 1)) + pulse * 0.1 + l.hoverBoost * 0.2;
+      l.pool.material.opacity = 0.24 + pulse * 0.1 + l.hoverBoost * 0.12;
+      const haloK = 1 + l.hoverBoost * 0.14 + pulse * 0.03;
+      l.halo.scale.set(l.haloBase * haloK, l.haloBase * haloK, 1);
+      l.pool.scale.setScalar(l.poolBase * (1 + l.hoverBoost * 0.08));
+
+      // A faint white wake ripple now and then while drifting.
+      l.wakeTimer -= dt;
+      if (l.wakeTimer <= 0) {
+        l.wakeTimer = 6 + Math.random() * 5;
+        this.spawnRipple(nx, nz, '#ffffff', { maxScale: 2.1, opacity: 0.13, duration: 1.9 });
+      }
 
       if (l.spinMesh) l.spinMesh.rotation.y += dt * 0.5;
 
@@ -436,15 +559,33 @@ export class LanternManager {
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       const r = this.ripples[i];
       r.life += dt;
-      const k = r.life / 2.2;
+      const k = r.life / r.duration;
       if (k >= 1) {
         this.scene.remove(r.mesh);
         r.mesh.material.dispose();
         r.mesh.geometry.dispose();
         this.ripples.splice(i, 1);
       } else {
-        r.mesh.scale.setScalar(0.4 + k * 4.2);
-        r.mesh.material.opacity = 0.45 * (1 - k);
+        r.mesh.scale.setScalar(0.4 + k * (r.maxScale - 0.4));
+        r.mesh.material.opacity = r.opacity * (1 - k);
+      }
+    }
+
+    // Placement sparks rise, slow, and fade.
+    for (let i = this.bursts.length - 1; i >= 0; i--) {
+      const b = this.bursts[i];
+      b.life += dt;
+      const k = b.life / b.duration;
+      if (k >= 1) {
+        this.scene.remove(b.sprite);
+        b.sprite.material.dispose();
+        this.bursts.splice(i, 1);
+      } else {
+        b.sprite.position.x += b.vx * dt;
+        b.sprite.position.y += b.vy * dt;
+        b.sprite.position.z += b.vz * dt;
+        b.vy -= 2.6 * dt;
+        b.sprite.material.opacity = 0.85 * (1 - k * k);
       }
     }
 

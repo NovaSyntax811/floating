@@ -70,6 +70,8 @@ state.onUnlock = (labels) => {
   audio.unlockSound();
   ui.refresh();
 };
+state.onLightGain = () => ui.pulseLight();
+state.onHarmonyGain = () => ui.pulseHarmony();
 
 ui.onTimeChange = (t) => env.setTimeOfDay(t);
 ui.onWeatherChange = (key, on) => {
@@ -88,8 +90,10 @@ for (const f of FEATURES) {
 }
 
 // ---------- intro ----------
+let introActive = true;
 const intro = document.getElementById('intro');
 document.getElementById('begin-btn').addEventListener('click', () => {
+  introActive = false;
   intro.style.opacity = '0';
   setTimeout(() => intro.remove(), 1300);
   ui.showGameUI();
@@ -107,6 +111,48 @@ document.getElementById('begin-btn').addEventListener('click', () => {
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let downAt = null;
+
+// Live pointer state for the hover glow and placement ghost.
+const livePointer = { x: 0, y: 0, onCanvas: false, isMouse: false };
+window.addEventListener('pointermove', (e) => {
+  livePointer.x = e.clientX;
+  livePointer.y = e.clientY;
+  livePointer.onCanvas = e.target === canvas;
+  livePointer.isMouse = e.pointerType === 'mouse';
+});
+canvas.addEventListener('pointerleave', () => {
+  livePointer.onCanvas = false;
+});
+
+const ghostTarget = { visible: false, x: 0, z: 0, colorHex: '#ffb45e', ok: true };
+
+function updatePointerFeedback() {
+  ghostTarget.visible = false;
+  ghostTarget.colorHex = ui.selection.color.hex;
+  if (introActive || !livePointer.onCanvas || !livePointer.isMouse) {
+    manager.setHovered(null);
+    return;
+  }
+  pointer.x = (livePointer.x / window.innerWidth) * 2 - 1;
+  pointer.y = -(livePointer.y / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+
+  const hits = raycaster.intersectObjects(manager.raycastTargets, false);
+  const hovered = hits.length ? hits[0].object.userData.lantern : null;
+  manager.setHovered(hovered);
+  canvas.style.cursor = hovered ? 'pointer' : 'crosshair';
+  if (hovered || manager.selected) return;
+
+  const waterHits = raycaster.intersectObject(water.mesh, false);
+  if (!waterHits.length) return;
+  const p = waterHits[0].point;
+  if (Math.hypot(p.x, p.z) > LAKE_RADIUS) return;
+  const model = MODELS.find((m) => m.id === ui.selection.model);
+  ghostTarget.visible = true;
+  ghostTarget.x = p.x;
+  ghostTarget.z = p.z;
+  ghostTarget.ok = state.canAfford(model.cost);
+}
 
 canvas.addEventListener('pointerdown', (e) => {
   downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -222,6 +268,8 @@ function animate() {
   env.update(dt, t);
   water.update(t, env);
   manager.update(dt, t);
+  updatePointerFeedback();
+  manager.updateGhost(dt, t, ghostTarget);
   controls.update();
   composer.render();
 }

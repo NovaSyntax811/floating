@@ -66,6 +66,7 @@ export class GameState {
         this._regenAcc = 0;
         this.light = Math.min(LIGHT.cap, this.light + 1);
         this.onChange?.();
+        this.onLightGain?.();
       }
     }
     this._saveAcc += dt;
@@ -91,6 +92,7 @@ export class GameState {
   addHarmony(n) {
     const before = this.harmony;
     this.harmony += n;
+    this.onHarmonyGain?.();
     const newly = ALL_UNLOCKABLES.filter((u) => u.unlock > before && u.unlock <= this.harmony);
     if (newly.length && this.onUnlock) {
       // Group by threshold so one toast lists everything that opened together.

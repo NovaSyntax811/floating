@@ -38,6 +38,7 @@ export class UI {
       el.addEventListener('click', () => {
         if (!this.state.isUnlocked(m)) return;
         this.selection.model = m.id;
+        this._bounce(el);
         this.refresh();
       });
       modelBox.appendChild(el);
@@ -52,6 +53,7 @@ export class UI {
       el.title = m.desc;
       el.addEventListener('click', () => {
         this.selection.material = m.id;
+        this._bounce(el);
         this.refresh();
       });
       matBox.appendChild(el);
@@ -63,10 +65,12 @@ export class UI {
       el.className = 'dock-item swatch';
       el.dataset.id = c.id;
       el.style.background = c.hex;
+      el.style.color = c.hex;
       el.title = c.name;
       el.addEventListener('click', () => {
         if (!this.state.isUnlocked(c)) return;
         this.selection.color = c;
+        this._bounce(el);
         this.refresh();
       });
       colorBox.appendChild(el);
@@ -82,10 +86,17 @@ export class UI {
       el.addEventListener('click', () => {
         if (!this.state.isUnlocked(p)) return;
         this.selection.pattern = p.id;
+        this._bounce(el);
         this.refresh();
       });
       patternBox.appendChild(el);
     }
+  }
+
+  _bounce(el) {
+    el.classList.remove('just-picked');
+    void el.offsetWidth;
+    el.classList.add('just-picked');
   }
 
   // ---------- ambience ----------
@@ -167,6 +178,7 @@ export class UI {
       const el = document.createElement('button');
       el.className = 'dock-item swatch' + (lantern.colorHex === c.hex ? ' active' : '');
       el.style.background = c.hex;
+      el.style.color = c.hex;
       el.title = c.name;
       el.addEventListener('click', () => {
         handlers.onColor(c.hex);
@@ -258,6 +270,21 @@ export class UI {
     // If the selected model got outleveled by a lock (fresh reset), fall back.
     const selModel = MODELS.find((m) => m.id === this.selection.model);
     if (!st.isUnlocked(selModel)) this.selection.model = 'paper';
+  }
+
+  // ---------- HUD micro feedback ----------
+  pulseLight() {
+    const row = document.getElementById('light-row');
+    row.classList.remove('pulse');
+    void row.offsetWidth; // restart the animation
+    row.classList.add('pulse');
+  }
+
+  pulseHarmony() {
+    const bar = document.querySelector('.harmony-bar');
+    bar.classList.remove('glow');
+    void bar.offsetWidth;
+    bar.classList.add('glow');
   }
 
   // ---------- toast ----------
