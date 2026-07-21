@@ -102,7 +102,7 @@ export class GameState {
         byThreshold.get(u.unlock).push(u.label);
       }
       for (const labels of byThreshold.values()) {
-        this.onUnlock(labels.join('  ·  '));
+        this.onUnlock(labels.join('  \u00b7  '));
       }
     }
   }

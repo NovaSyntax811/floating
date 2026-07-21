@@ -211,7 +211,7 @@ export class UI {
       upBtn.textContent = 'Fully radiant';
       upBtn.disabled = true;
     } else {
-      upBtn.textContent = `Raise the light  ·  ${UPGRADE_COST}`;
+      upBtn.textContent = `Raise the light  \u00b7  ${UPGRADE_COST}`;
       upBtn.disabled = !this.state.canAfford(UPGRADE_COST);
     }
     upBtn.onclick = () => {
@@ -244,10 +244,10 @@ export class UI {
       const from = Math.max(...prevThresholds);
       const pct = Math.min(100, ((st.harmony - from) / (next.at - from)) * 100);
       fill.style.width = `${pct}%`;
-      label.textContent = `harmony ${st.harmony}  ·  something new at ${next.at}`;
+      label.textContent = `harmony ${st.harmony}  \u00b7  something new at ${next.at}`;
     } else {
       fill.style.width = '100%';
-      label.textContent = `harmony ${st.harmony}  ·  everything has unfolded`;
+      label.textContent = `harmony ${st.harmony}  \u00b7  everything has unfolded`;
     }
 
     // Dock lock and active states.
